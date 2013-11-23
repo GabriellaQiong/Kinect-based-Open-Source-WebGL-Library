@@ -1,6 +1,13 @@
 Kinect-based-Open-Source-WebGL-Library
 ======================================
 
+This is work in project.
+
+About this project:
+
+https://docs.google.com/document/d/1TlyWD7UQz0TsvjX7qm6a8AISIgpL6dFSIpwJI2IIV-c/edit?usp=sharing
+
+
 Note 1:
 
 Windows project references [Alchemy](http://alchemywebsockets.net/).
