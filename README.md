@@ -8,7 +8,13 @@ Git clone, set to release mode, build, and copy Alchemy.dll to Windows/WebSocket
 
 Note 2:
 
-Does not work on Moore 100 pc. 
 Need admin privilege to run server.
+
+
+Known Issues:
+
+Windows:
+
+- There is a black stripe on the left side of the canvas regardless of input.
 
 Final Project for CIS 565 GPU Programming, Fall 2013
