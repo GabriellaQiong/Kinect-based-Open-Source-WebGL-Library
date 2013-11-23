@@ -1,7 +1,7 @@
 Kinect-based-Open-Source-WebGL-Library
 ======================================
 
-This is work in project.
+This is work in progress.
 
 About this project:
 
