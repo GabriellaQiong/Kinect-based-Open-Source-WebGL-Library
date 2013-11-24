@@ -1,5 +1,11 @@
-Kinect-based-Open-Source-WebGL-Library
+WebGL Shader Editor with Kinect Data
 ======================================
+
+
+Takashi Furuya, Qiong Wang
+------------------------------------
+**Final Project for CIS 565 GPU Programming, Fall 2013**
+
 
 This is work in progress.
 
@@ -24,4 +30,3 @@ Windows:
 
 - There is a black stripe on the left side of the canvas regardless of input.
 
-Final Project for CIS 565 GPU Programming, Fall 2013
