@@ -13,6 +13,10 @@ About this project:
 
 https://docs.google.com/document/d/1TlyWD7UQz0TsvjX7qm6a8AISIgpL6dFSIpwJI2IIV-c/edit?usp=sharing
 
+Alpha presentation:
+
+https://docs.google.com/presentation/d/1GgohxoH85cNcYGkluDJ-QHQdxUQi6bjtzMOLci3d2gk/edit?usp=sharing
+
 
 Note 1:
 
