@@ -5,7 +5,7 @@ function openConnection() {
     // uses global 'conn' object
     if (conn.readyState === undefined || conn.readyState > 1) {
 
-        conn = new WebSocket('ws://localhost:9000');
+        conn = new WebSocket('ws://localhost:8100');
         conn.binaryType = "arraybuffer";
 
         conn.onopen = function () {
