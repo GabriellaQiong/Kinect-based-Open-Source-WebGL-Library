@@ -20,7 +20,7 @@ class Program
 	protected static ConcurrentDictionary<string, UserContext> onlineConnections;	// Thread-safe collection of online connections.
 	private static KinectSensor sensor;												// Active Kinect sensor.
 	private static DepthImagePixel[] depthPixels;									// Intermediate storage for the depth data received from the camera.
-	private static byte[] transferData;												// Data to send via Web Socket.
+	private static byte[] transferData;												// Data to send via WebSocket.
 
 	static void Main(string[] args)
 	{
@@ -36,18 +36,18 @@ class Program
 		};
 		aServer.Start();
 
-        Console.WriteLine("Running Alchemy WebSocket Server ...");
-        Console.WriteLine("[Type \"exit\" and hit enter to stop the server]");
+		Console.WriteLine("Running Alchemy WebSocket Server ...");
+		Console.WriteLine("[Type \"exit\" and hit enter to stop the server]");
 
 		initializeKinect();
 		Console.WriteLine("Kinect initialization has finished.");
 
-        // Accept commands on the console and keep it alive
-        var command = string.Empty;
-        while (command != "exit")
-        {
-            command = Console.ReadLine();
-        }
+		// Accept commands on the console and keep it alive
+		var command = string.Empty;
+		while (command != "exit")
+		{
+			command = Console.ReadLine();
+		}
 
 		// Stop Kinect.
 		if (null != sensor)
@@ -55,9 +55,8 @@ class Program
 			sensor.Stop();
 		}
 
-        aServer.Stop();
-
-    }
+		aServer.Stop();
+	}
 
 
 	public static void initializeKinect()
@@ -79,14 +78,14 @@ class Program
 		{
 			// Turn on the depth stream to receive depth frames
 			sensor.DepthStream.Enable(DepthImageFormat.Resolution640x480Fps30);
-			
+
 			// Allocate space to put the depth pixels we'll receive
 			depthPixels = new DepthImagePixel[sensor.DepthStream.FramePixelDataLength];
 			transferData = new byte[depthPixels.Length];
 
 			// Add an event handler to be called whenever there is new depth frame data
 			sensor.DepthFrameReady += SensorDepthFrameReady;
-			
+
 			// Start the sensor!
 			try
 			{
@@ -100,7 +99,7 @@ class Program
 
 		if (null == sensor)
 		{
-			Console.WriteLine("No Kinect Ready");
+			Console.WriteLine("Kinect is not ready (please restart server).");
 		}
 	}
 
@@ -116,7 +115,7 @@ class Program
 				// Get the min and max reliable depth for the current frame
 				int minDepth = depthFrame.MinDepth;
 				int maxDepth = depthFrame.MaxDepth;
-					
+
 				// Convert depth from short to byte.
 				for (int i = 0; i < depthPixels.Length; ++i)
 				{
@@ -146,44 +145,42 @@ class Program
 	}
 
 
-    public static void OnConnect(UserContext aContext)
-    {
-        Console.WriteLine("Client Connected From : " + aContext.ClientAddress.ToString());
+	public static void OnConnect(UserContext aContext)
+	{
+		Console.WriteLine("Client connected from: " + aContext.ClientAddress.ToString());
 
-        // Add a connection Object to thread-safe collection
+		// Add a connection Object to thread-safe collection
 		onlineConnections.TryAdd(aContext.ClientAddress.ToString(), aContext);
-    }
+	}
 
 
-    public static void OnReceive(UserContext aContext)
-    {
-        try
-        {
-            Console.WriteLine("Data Received From [" + aContext.ClientAddress.ToString() + "] - " + aContext.DataFrame.ToString());
+	public static void OnReceive(UserContext aContext)
+	{
+		try
+		{
+			Console.WriteLine("Data received from [" + aContext.ClientAddress.ToString() + "] - " + aContext.DataFrame.ToString());
 
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine(ex.Message.ToString());
-        }
-    }
-
-
-    public static void OnSend(UserContext aContext)
-    {
-        Console.WriteLine("Data Sent To : " + aContext.ClientAddress.ToString());
-    }
+		}
+		catch (Exception ex)
+		{
+			Console.WriteLine(ex.Message.ToString());
+		}
+	}
 
 
-    public static void OnDisconnect(UserContext aContext)
-    {
-        Console.WriteLine("Client Disconnected : " + aContext.ClientAddress.ToString());
+	public static void OnSend(UserContext aContext)
+	{
+		Console.WriteLine("Data sent to: " + aContext.ClientAddress.ToString());
+	}
 
-        // Remove the UserContext Object from the thread-safe collection.
+
+	public static void OnDisconnect(UserContext aContext)
+	{
+		Console.WriteLine("Client disconnected: " + aContext.ClientAddress.ToString());
+
+		// Remove the UserContext Object from the thread-safe collection.
 		UserContext userContext;
 		onlineConnections.TryRemove(aContext.ClientAddress.ToString(), out userContext);
-    }
+	}
 }
-
-
 
