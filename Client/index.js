@@ -1,62 +1,134 @@
 
-function openConnection() {
-    // uses global 'conn' object
-    if (conn.readyState === undefined || conn.readyState > 1) {
+// WebGLRenderingContext
+var gl;
 
-        conn = new WebSocket('ws://localhost:8100');
-        conn.binaryType = "arraybuffer";
+var canvasWidth;
+var canvasHeight;
 
-        conn.onopen = function () {
-            conn.send("Connection Established Confirmation");
-        };
+// Program attribute & uniform locations.
+var locations;
 
+// WebGL buffers & sizes.
+var vertexPosition;
+var vertexTextureCoord;
+var vertexIndex;
 
-        conn.onmessage = function (event) {
-        	//document.getElementById("content").innerHTML = event.data;
-        	
-        	var buffer = new Int8Array(event.data);
-        	console.log(buffer.byteLength);
-        	
-        	for (var y = 0; y < canvas.height; ++y) {
-        		for (var x = 0; x < canvas.width; ++x) {
-        			var index = (y * canvas.width + x) * 4;
-        			var value = buffer[y * canvas.width + x];
+// WebGL texture and DOM image.
+var texture;
 
-        			data[index] = value;    // red
-        			data[++index] = value;    // green
-        			data[++index] = value;    // blue
-        			data[++index] = 255;      // alpha
-        		}
-        	}
+// Model-view-projection matrices.
+var mvMatrix;
+var pMatrix;
 
-        	ctx.putImageData(imageData, 0, 0);
-        };
+// Uint8.
+var kinectDepth;
+var isKinectDataAvailable = false;
 
-        conn.onerror = function (event) {
-            alert("Web Socket Error");
-        };
-
-
-        conn.onclose = function (event) {
-            alert("Web Socket Closed");
-        };
-    }
-}
-
-var canvas;
-var ctx;
-var imageData;
-var data;
+// Performance monitor.
+var statsRender;
+var statsSocket;
 
 $(function () {
-	conn = {}, window.WebSocket = window.WebSocket || window.MozWebSocket;
-
-	openConnection();
-
-
-	canvas = document.getElementById('canvas');
-	ctx = canvas.getContext('2d');
-	imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-	data = imageData.data;
+	initStats();
+	webGLStart();
+	initWebSocket();
+	
+	tick();
 });
 
+
+// Show performance monitor.
+var initStats = function() {
+	statsRender = new Stats();
+	statsSocket = new Stats();
+	
+	statsRender.setMode(0);
+	statsSocket.setMode(0);
+	
+	document.getElementById("stats-render").appendChild( statsRender.domElement );
+	document.getElementById("stats-socket").appendChild( statsSocket.domElement );
+}
+
+
+var webGLStart = function() {
+	// Get WebGL context.
+	var canvas = document.getElementById("main-canvas");
+	canvasWidth = canvas.width;
+	canvasHeight = canvas.height;
+	gl = initGL(canvas);
+	
+	// Get shader program's uniform & attribute locations.
+	locations = initShaders(gl);
+	
+	// Set buffers & get reference to them.
+	buffers = initBuffers(gl);
+	vertexPosition = buffers.vertexPosition;
+	vertexTextureCoord = buffers.vertexTextureCoord;
+	vertexIndex = buffers.vertexIndex;
+	
+	texture = initTexture(gl);
+	
+	// Model-view-projection matrices.
+	matrices = initMVPMatrix(canvasWidth, canvasHeight);
+	mvMatrix = matrices.modelView;
+	pMatrix = matrices.projection;
+	
+	gl.clearColor(0.0, 0.0, 0.0, 1.0);
+	gl.enable(gl.DEPTH_TEST);
+};
+
+
+var drawScene = function() {
+	// Set viewport & clear.
+	gl.viewport(0, 0, canvasWidth, canvasHeight);
+	gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+	
+	// Vertex positions.
+	gl.bindBuffer(gl.ARRAY_BUFFER, vertexPosition.webGLBuffer);
+	gl.vertexAttribPointer(locations.vertexPositionAttribute, vertexPosition.itemSize, gl.FLOAT, false, 0, 0);
+	
+	// Vertex texture coordinates.
+	gl.bindBuffer(gl.ARRAY_BUFFER, vertexTextureCoord.webGLBuffer);
+	gl.vertexAttribPointer(locations.textureCoordAttribute, vertexTextureCoord.itemSize, gl.FLOAT, false, 0, 0);
+	
+	// Texture.
+	gl.activeTexture(gl.TEXTURE0);
+	gl.bindTexture(gl.TEXTURE_2D, texture.webGLTexture);
+	gl.uniform1i(locations.samplerUniform, 0);
+	
+	// Vertex indices.
+	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, vertexIndex.webGLBuffer);
+	
+	// Uniforms.
+	gl.uniformMatrix4fv(locations.pMatrixUniform, false, pMatrix);
+	gl.uniformMatrix4fv(locations.mvMatrixUniform, false, mvMatrix);
+	
+	// Draw.
+	gl.drawElements(gl.TRIANGLES, vertexIndex.numItems, gl.UNSIGNED_SHORT, 0);
+};
+
+var animate = function() {
+	if (isKinectDataAvailable) {
+		updateTexture(kinectDepth, texture.webGLTexture);
+		isKinectDataAvailable = false;
+	}
+};
+
+// data: Uint8Array
+var updateTexture = function(data, webGLTexture) {
+	gl.bindTexture(gl.TEXTURE_2D, webGLTexture);
+	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+	gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, 640, 480, 0, gl.LUMINANCE, gl.UNSIGNED_BYTE, data);
+};
+
+var tick = function() {
+	statsRender.begin();
+	
+	requestAnimFrame(tick);
+	drawScene();
+	animate();
+	
+	statsRender.end();
+};
