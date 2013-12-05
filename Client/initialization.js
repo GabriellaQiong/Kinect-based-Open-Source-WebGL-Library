@@ -77,38 +77,71 @@ var getShader = function(gl, id) {
 // Attach shaders, link/use program, and enable attribute arrays.
 // Returns program's attribute & unifrom locations.
 var initShaders = function(gl) {
-	var shaderProgram = null;
 	
 	// Get vertex & fragment shaders.
-	var fragmentShader = getShader(gl, "shader-fs");
-	var vertexShader = getShader(gl, "shader-vs");
+	var vertexShader0 = getShader(gl, "vs0");
+	var vertexShader1 = getShader(gl, "vs1");
+	var fragmentShader0 = getShader(gl, "fs0");
+	var fragmentShader1 = getShader(gl, "fs1");
+	var fragmentShader2 = getShader(gl, "fs2");
 	
-	// Create, link, and use shader program.
-	shaderProgram = gl.createProgram();
-	gl.attachShader(shaderProgram, vertexShader);
-	gl.attachShader(shaderProgram, fragmentShader);
-	gl.linkProgram(shaderProgram);
-
-	if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
-		alert("Could not initialise shaders");
-	}
 	
-	gl.useProgram(shaderProgram);
+	// Create and link shader programs.
+	var createAndLink = function(vs, fs, programNumber) {
+		var program = gl.createProgram();
+		gl.attachShader(program, vs);
+		gl.attachShader(program, fs);
+		gl.linkProgram(program);
+		
+		if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+			alert("Could not initialise shader program #" + programNumber);
+		}
+		
+		return program;
+	};
+	var numPrograms = 3;
+	var shaderProgram = new Array(numPrograms);
+	shaderProgram[0] = createAndLink(vertexShader0, fragmentShader0, 0);
+	shaderProgram[1] = createAndLink(vertexShader0, fragmentShader1, 1);
+	shaderProgram[2] = createAndLink(vertexShader1, fragmentShader2, 2);
+	
+	gl.useProgram(shaderProgram[0]);
 	
 	
 	// Get attribute & uniform locations of vertex & fragment shaders.
-	var locations = {};
-	locations.vertexPositionAttribute = gl.getAttribLocation(shaderProgram, "aVertexPosition");
-	locations.textureCoordAttribute = gl.getAttribLocation(shaderProgram, "aTextureCoord");
-	locations.samplerUniform = gl.getUniformLocation(shaderProgram, "uSampler");
-	locations.pMatrixUniform = gl.getUniformLocation(shaderProgram, "uPMatrix");
-	locations.mvMatrixUniform = gl.getUniformLocation(shaderProgram, "uMVMatrix");
+	var locations = new Array(2);
+	locations[0] = {};
+	locations[0].vertexPositionAttribute = gl.getAttribLocation(shaderProgram[0], "aVertexPosition");
+	locations[0].textureCoordAttribute = gl.getAttribLocation(shaderProgram[0], "aTextureCoord");
+	locations[0].samplerUniform = gl.getUniformLocation(shaderProgram[0], "uSampler");
+	locations[0].pMatrixUniform = gl.getUniformLocation(shaderProgram[0], "uPMatrix");
+	locations[0].mvMatrixUniform = gl.getUniformLocation(shaderProgram[0], "uMVMatrix");
+	
+	locations[1] = {};
+	locations[1].vertexPositionAttribute = gl.getAttribLocation(shaderProgram[1], "aVertexPosition");
+	locations[1].textureCoordAttribute = gl.getAttribLocation(shaderProgram[1], "aTextureCoord");
+	locations[1].samplerUniform = gl.getUniformLocation(shaderProgram[1], "uSampler");
+	locations[1].pMatrixUniform = gl.getUniformLocation(shaderProgram[1], "uPMatrix");
+	locations[1].mvMatrixUniform = gl.getUniformLocation(shaderProgram[1], "uMVMatrix");
+	
+	locations[2] = {};
+	locations[2].vertexPositionAttribute = gl.getAttribLocation(shaderProgram[2], "aVertexPosition");
+	locations[2].vertexDataAttribute = gl.getAttribLocation(shaderProgram[2], "aVertexData");
+	locations[2].pMatrixUniform = gl.getUniformLocation(shaderProgram[2], "uPMatrix");
+	locations[2].mvMatrixUniform = gl.getUniformLocation(shaderProgram[2], "uMVMatrix");
 	
 	// Enable attribute array.
-	gl.enableVertexAttribArray(locations.vertexPositionAttribute);
-	gl.enableVertexAttribArray(locations.textureCoordAttribute);
+	gl.enableVertexAttribArray(locations[0].vertexPositionAttribute);
+	gl.enableVertexAttribArray(locations[0].textureCoordAttribute);
+	gl.enableVertexAttribArray(locations[1].vertexPositionAttribute);
+	gl.enableVertexAttribArray(locations[1].textureCoordAttribute);
+	gl.enableVertexAttribArray(locations[2].vertexPositionAttribute);
+	gl.enableVertexAttribArray(locations[2].vertexDataAttribute);
 	
-	return locations;
+	return {
+		locations: locations,
+		switchShaderProgram: function(idx) {gl.useProgram(shaderProgram[idx]);}
+	};
 };
 
 // -----------------------------------------------------------------------------
@@ -133,6 +166,21 @@ var initBuffers = function(gl) {
 		numItems: 6
 	};
 	
+	w = 640;
+	h = 480;
+	var vertexGridPosition = {
+		webGLBuffer: gl.createBuffer(),
+		itemSize: 3,
+		numItems: w*h
+	};
+	
+	var vertexGridData = {
+		webGLBuffer: gl.createBuffer(),
+		itemSize: 3,
+		numItems: w*h
+	};
+	
+	
 	//  3 -- 2
 	//  |    | side length 2, centered at origin, xy plane.
 	//  0 -- 1
@@ -156,6 +204,17 @@ var initBuffers = function(gl) {
 		0, 1, 2,      0, 2, 3    // Front face
 	];
 	
+	var vertexGrid = new Array(vertexGridPosition.numItems*vertexGridPosition.itemSize);
+	var k = 0;
+	for (var i = 0; i < w; ++i) {
+		for (var j = 0; j < h; ++j) {
+			vertexGrid[k++] = i;
+			vertexGrid[k++] = j;
+			vertexGrid[k++] = 0.0;
+		}
+	}
+	
+	
 	gl.bindBuffer(gl.ARRAY_BUFFER, vertexPosition.webGLBuffer);
 	gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
 	
@@ -164,11 +223,19 @@ var initBuffers = function(gl) {
 	
 	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, vertexIndex.webGLBuffer);
 	gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(vertexIndices), gl.STATIC_DRAW);
+
+	gl.bindBuffer(gl.ARRAY_BUFFER, vertexGridPosition.webGLBuffer);
+	gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertexGrid), gl.DYNAMIC_DRAW);
+	
+	gl.bindBuffer(gl.ARRAY_BUFFER, vertexGridData.webGLBuffer);
+	gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertexGridData.numItems*vertexGridData.itemSize), gl.DYNAMIC_DRAW);
 	
 	return {
 		vertexPosition: vertexPosition,
 		vertexTextureCoord: vertexTextureCoord,
-		vertexIndex: vertexIndex
+		vertexIndex: vertexIndex,
+		vertexGridPosition: vertexGridPosition,
+		vertexGridData: vertexGridData
 	};
 };
 
@@ -178,7 +245,7 @@ var initBuffers = function(gl) {
 
 function handleLoadedTexture(gl, texture) {
 	gl.bindTexture(gl.TEXTURE_2D, texture.webGLTexture);
-	gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+	//gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
 	
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
@@ -192,21 +259,17 @@ function handleLoadedTexture(gl, texture) {
 };
 
 function initTexture(gl) {
-	var texture = {
-		webGLTexture: null,
-		image: null
+	var textures = new Array(2);
+	textures[0] = {};
+	textures[0].webGLTexture = gl.createTexture();
+	textures[0].image = new Image();
+	textures[0].image.onload = function () {
+		handleLoadedTexture(gl, textures[0]);
 	};
 	
-	texture.webGLTexture = gl.createTexture();
-	texture.image = new Image();
-	texture.image.onload = function () {
-		handleLoadedTexture(gl, texture);
-	};
-
-	//texture.image.src = "nehe.gif";
-	texture.image.src = "cat.jpg";
+	textures[0].image.src = "cat.jpg";
 	
-	return texture;
+	return textures[0];
 };
 
 
@@ -221,15 +284,7 @@ var initWebSocket = function() {
 	webSocket.onopen = function () {
 		console.log("Web Socket opened.");
 	};
-
-	webSocket.onmessage = function () {
-		statsSocket.end();
-		statsSocket.begin();
-		console.log(event);
-		kinectDepth = new Uint8Array(event.data);
-		isKinectDataAvailable = true;
-	};
-
+	
 	webSocket.onerror = function (event) {
 		console.log("Web Socket error.");
 	};
@@ -237,4 +292,6 @@ var initWebSocket = function() {
 	webSocket.onclose = function (event) {
 		console.log("Web Socket closed.");
 	};
+	
+	return webSocket;
 };

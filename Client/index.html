@@ -1,18 +1,18 @@
 <!DOCTYPE html>
 <html>
     
-    <head>
-        <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
-        <title>WebGL Test</title>
-        <script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.7.2/jquery.min.js"></script>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
+		<title>WebGL Test</title>
+		<script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.7.2/jquery.min.js"></script>
 		<script type="text/javascript" src="lib/gl-matrix.js"></script>
 		<script type="text/javascript" src="lib/webgl-utils.js"></script>
 		<script type="text/javascript" src="lib/stats.min.js"></script>
 		
 		<script type="text/javascript" src="initialization.js"></script>
-        <script type="text/javascript" src="index.js"></script>
+		<script type="text/javascript" src="index.js"></script>
 
-		<script id="shader-vs" type="x-shader/x-vertex">
+		<script id="vs0" type="x-shader/x-vertex">
 			attribute vec3 aVertexPosition;
 			attribute vec2 aTextureCoord;
 
@@ -21,14 +21,28 @@
 
 			varying vec2 vTextureCoord;
 
-
 			void main(void) {
 				gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition, 1.0);
 				vTextureCoord = aTextureCoord;
 			}
 		</script>
+		
+		<script id="vs1" type="x-shader/x-vertex">
+			attribute vec3 aVertexPosition;
+			attribute vec3 aVertexData;
 
-		<script id="shader-fs" type="x-shader/x-fragment">
+			uniform mat4 uMVMatrix;
+			uniform mat4 uPMatrix;
+
+			void main(void) {
+				float k = aVertexData.x - 1.0;
+				gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition.x, aVertexPosition.y, k, 1.0);
+				
+				gl_PointSize = 2.0;
+			}
+		</script>
+
+		<script id="fs0" type="x-shader/x-fragment">
 			precision mediump float;
 
 			varying vec2 vTextureCoord;
@@ -36,6 +50,7 @@
 			uniform sampler2D uSampler;
 
 			void main(void) {
+				/*
 				float stepX = 1.0/640.0;
 				float stepY = 1.0/480.0;
 				float left = texture2D(uSampler, vTextureCoord+vec2(-stepX, 0.0)).r;
@@ -46,12 +61,35 @@
 				vec3 v2 = vec3(1.0, 0.0, right-left);
 				vec3 v3 = cross(v1, v2);
 				
+				gl_FragColor = vec4(v3, 1.0);
+				*/
+				
 				vec4 a = texture2D(uSampler, vec2(vTextureCoord.s, vTextureCoord.t));
 				gl_FragColor = vec4(a.xxx, 1.0);
-				//gl_FragColor = vec4(v3, 1.0);
 			}
 		</script>
-    </head>
+		
+		<script id="fs1" type="x-shader/x-fragment">
+			precision mediump float;
+
+			varying vec2 vTextureCoord;
+
+			uniform sampler2D uSampler;
+
+			void main(void) {
+				vec4 a = texture2D(uSampler, vec2(vTextureCoord.s, vTextureCoord.t));
+				gl_FragColor = vec4(a.xyz, 1.0);
+			}
+		</script>
+		
+		<script id="fs2" type="x-shader/x-fragment">
+			precision mediump float;
+
+			void main(void) {
+				gl_FragColor = vec4(1.0);
+			}
+		</script>
+	</head>
     
     <body>
 		<canvas id="main-canvas" width="640" height="480" style="position:absolute; left:0;top:0;"></canvas>
@@ -59,14 +97,20 @@
 			<tr>
 				<td>Render</td>
 				<td>Web Socket</td>
+				<td>Server</td>
 			</tr>
 			<tr>
 				<td id="stats-render"></td>
 				<td id="stats-socket"></td>
+				<td id="stats-server"></td>
 			</tr>
 			<tr>
-				<td>Web Socket</td>
-				<td></td>
+				<td colspan="3"><form action="">
+					<input id="radio0" type="radio" value="0" name="option-group" checked><label for="radio0">Depth -- 1 Byte (300kB/frame)</label><br>
+					<input id="radio1" type="radio" value="1" name="option-group"><label for="radio1">RGB -- 3 Bytes</label><br>
+					<input id="radio2" type="radio" value="2" name="option-group"><label for="radio2">XYZ (server) -- 12 Bytes (2.5MB/frame)</label><br>
+					<input id="radio3" type="radio" value="3" name="option-group"><label for="radio3">XYZ (client) -- 2 Bytes</label>
+				</form></td>
 			</tr>
 		</table>
     </body>
