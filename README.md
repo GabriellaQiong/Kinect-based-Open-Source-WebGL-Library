@@ -72,5 +72,15 @@ sudo easy_install pylzman
 
 sudo easy_install autobahn
 ```
+---
+THIRD-PARTY CODE
+---
 
+The base code for websocket and depth display is from Elespuru's github: https://github.com/elespuru/kinect-ws-depth-vid
+
+Elespuru forked his project from George MacKerron's depthcam project:
+https://github.com/jawj/websocket-kinect
+
+George MacKerron's blog: 
+http://blog.mackerron.com/2012/02/03/depthcam-webkinect/
 
