@@ -220,7 +220,8 @@ function init() {
 		
 	uniforms = {
         "pointColor": { type: "v4", value: new THREE.Vector4( 0.25, 0.50, 1.0, 0.25 ) },
-        "pointSize": { type: "f", value: 3}
+        "pointSize": { type: "f", value: 3},
+        "deformRatio": {type: "v2", value: new THREE.Vector2( 1.0, 1,0)}
     };
 
     attributes = {
@@ -294,7 +295,8 @@ function init() {
     gui1.add( material.uniforms.pointColor.value, 'z', 0.0, 1.0 ).name('blue');
     gui1.add( material.uniforms.pointColor.value, 'w', 0.0, 1.0 ).name('alpha');
     gui1.add( material.uniforms.pointSize, 'value', 0.0, 10.0).name('size');
-	
+    gui1.add( material.uniforms.deformRatio.value, 'x', 0.1, 5.0).name('morph x');	
+    gui1.add( material.uniforms.deformRatio.value, 'y', 0.1, 5.0).name('morph y');	
     console.log("Initialized");
 
 }
@@ -362,7 +364,7 @@ function dataCallback(e) {
 				
 				pv.position.z = depth * 10;
 			}
-					
+			
 			pIdx += 1;
 			byteIdx += 1;
 		}
