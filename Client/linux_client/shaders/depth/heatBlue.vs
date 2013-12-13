@@ -5,7 +5,7 @@ precision highp float;
 uniform vec4 pointColor;
 uniform float pointSize;
 uniform vec2 deformRatio;
-
+uniform sampler2D img;
 
 varying vec2 vUv;
 varying float depth;

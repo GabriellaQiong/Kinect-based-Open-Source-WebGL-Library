@@ -4,6 +4,7 @@ precision highp float;
 
 uniform vec4 pointColor;
 uniform float pointSize;
+uniform sampler2D img;
 
 varying vec2 vUv;
 varying float sd;
@@ -34,8 +35,11 @@ vec3 heat( float t )
 
 void main( void ) 
 {	
-	// heat map alpha blended color
+    vec3 color = texture2D(img,vUv).rgb;
+    // heat map alpha blended color
 	float d = gl_FragCoord.z / gl_FragCoord.w;
+	//vec4 cH = vec4( heat(depth) * color, pointColor.w * alpha(depth));
 	vec4 cH = vec4( heat(depth) * pointColor.xyz, pointColor.w * alpha(depth));
 	gl_FragColor = 5.0 * vec4(cH);
+    //gl_FragColor = texture2D(img, vUv);
 }

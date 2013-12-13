@@ -26,9 +26,11 @@ var h;
 var i;
 var inputH;
 var inputW;
+var imgData = new Image();
+var image, imageContext, imageGradient, texture;
 var k;
 var kvp;
-var mesh, material;
+var mesh, plane, material;
 var outArrays;
 var pLen;
 var params;
@@ -69,7 +71,7 @@ var uniforms, attributes;
 var shaderCache     = { vertex: '', fragment: '' };
 
 var controls = function() {
-  this.glsl_filter = 'heatBlue';
+  this.glsl_filter = 'default';
 };
 
 window.onload = function() {
@@ -113,9 +115,12 @@ window.onload = function() {
 	});    
 */
 	// load the default shader (passthrough/noop)
-	loadShader('shaders/depth/heatBlue.vs','vs-heatBlue','vertex');
-	loadShader('shaders/depth/heatBlue.fs','fs-heatBlue','fragment');
+	//loadShader('shaders/depth/heatBlue.vs','vs-heatBlue','vertex');
+	//loadShader('shaders/depth/heatBlue.fs','fs-heatBlue','fragment');
+    loadShader('shaders/video/default.vs','vs-default','vertex');
+	loadShader('shaders/video/default.fs','fs-default','fragment');
  
+
 	init();
 	animate();
 }
@@ -152,7 +157,12 @@ function re_init( filter ) {
 	});
 	particleSystem = new THREE.ParticleSystem( particles, material );
 	scene.add( particleSystem );
-		
+	
+    plane = new THREE.PlaneGeometry( inputW, inputH, 4, 4);
+    mesh = new THREE.Mesh( plane, material );
+    mesh.scale.x = mesh.scale.y = mesh.scale.z = 1.5;
+    scene.add(mesh);
+
 	console.log("Re-Initialized using "+filter);
 	
 }
@@ -163,7 +173,7 @@ function init() {
 		stats: 0,
 		fog: 1,
 		credits: 0,
-		ws: "ws://127.0.0.1:9000"
+		ws: "ws://127.0.0.1:9001"
 		//ws: "ws://127.0.0.1:9898"
 		//ws: "ws://" + window.location.host
 	};
@@ -215,13 +225,34 @@ function init() {
     projector = new THREE.Projector();
 	scene = new THREE.Scene();
 	scene.add(camera);
-		
+	
+    imgData.onload = function() {}
+
+    image = document.createElement( 'canvas' );
+    image.width = inputW;
+    image.height = inputH;
+
+    imageContext = image.getContext( '2d' );
+    imageContext.fillStyle = '#000000';
+    imageContext.fillRect( 0, 0, inputW, inputH );
+    
+	imageGradient = imageContext.createLinearGradient( 0, 0, 0, inputH );
+	// at the moment, want raw image, no post processing or gradiant overlay set
+	// alpha to 0.0 effectively negates this layer but leaves it in place for future use
+	imageGradient.addColorStop( 0.2, 'rgba(240, 240, 240, 0.0)' );
+	imageGradient.addColorStop( 1,   'rgba(240, 240, 240, 0.0)' ); //0.8
+
+    texture = new THREE.Texture( image );
+    texture.minFilter = THREE.LinearFilter;
+    texture.magFilter = THREE.LinearFilter;
+    
 	if (params.fog) scene.fog = new THREE.FogExp2(bgColour, 0.00033);
 		
 	uniforms = {
         "pointColor": { type: "v4", value: new THREE.Vector4( 0.25, 0.50, 1.0, 0.25 ) },
-        "pointSize": { type: "f", value: 3},
-        "deformRatio": {type: "v2", value: new THREE.Vector2( 1.0, 1,0)}
+        "pointSize": { type: "f", value: 3 },
+        "deformRatio": { type: "v2", value: new THREE.Vector2( 1.0, 1,0) },
+        "img": { type: "t", value: 0, texture: texture }
     };
 
     attributes = {
@@ -318,11 +349,71 @@ function connectWebSocket() {
 		console.log("Disconnected: retrying in " + reconnectDelay + "s");
 		return setTimeout(connect, reconnectDelay * 1000);
 	};
-			
+
+    // from: https://gist.github.com/958841
+	function base64FromArrayBuffer(arrayBuffer) {
+	  var base64    = '';
+	  var encodings = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+
+	  var bytes         = new Uint8Array(arrayBuffer);
+	  var byteLength    = bytes.byteLength;
+	  var byteRemainder = byteLength % 3;
+	  var mainLength    = byteLength - byteRemainder;
+
+	  var a, b, c, d;
+	  var chunk;
+
+	  // Main loop deals with bytes in chunks of 3
+	  for (var i = 0; i < mainLength; i = i + 3) {
+	    // Combine the three bytes into a single integer
+	    chunk = (bytes[i] << 16) | (bytes[i + 1] << 8) | bytes[i + 2];
+
+	    // Use bitmasks to extract 6-bit segments from the triplet
+	    a = (chunk & 16515072) >> 18; // 16515072 = (2^6 - 1) << 18
+	    b = (chunk & 258048)   >> 12; // 258048   = (2^6 - 1) << 12
+	    c = (chunk & 4032)     >>  6; // 4032     = (2^6 - 1) << 6
+	    d = chunk & 63;               // 63       = 2^6 - 1
+
+	    // Convert the raw binary segments to the appropriate ASCII encoding
+	    base64 += encodings[a] + encodings[b] + encodings[c] + encodings[d];
+	  }
+
+	  // Deal with the remaining bytes and padding
+	  if (byteRemainder == 1) {
+	    chunk = bytes[mainLength];
+
+	    a = (chunk & 252) >> 2; // 252 = (2^6 - 1) << 2
+
+	    // Set the 4 least significant bits to zero
+	    b = (chunk & 3)   << 4; // 3   = 2^2 - 1
+
+	    base64 += encodings[a] + encodings[b] + '==';
+	  } else if (byteRemainder == 2) {
+	    chunk = (bytes[mainLength] << 8) | bytes[mainLength + 1];
+
+	    a = (chunk & 64512) >> 10; // 64512 = (2^6 - 1) << 10
+	    b = (chunk & 1008)  >>  4; // 1008  = (2^6 - 1) << 4
+
+	    // Set the 2 least significant bits to zero
+	    c = (chunk & 15)    <<  2; // 15    = 2^4 - 1
+
+	    base64 += encodings[a] + encodings[b] + encodings[c] + '=';
+	  }
+  
+	  return base64;
+	}
+    
+    dataCallback = function(e){
+    // take advantage of dataURI resourcing to dynamically
+    // update the img tag that gets drawn to the canvas
+    var data = "data:image/jpg;base64," + base64FromArrayBuffer(e.data);
+    imgData.src = data;
+    };
+
 	return ws.onmessage = dataCallback;
 }
 
-function dataCallback(e) {
+/*function dataCallback(e) {
 			
 	var aByte, byteIdx, bytes, depth, inStream, keyFrame, outStream, pIdx, prevBytes, pv, x, y, _ref5, _ref6;
 	_ref5 = [prevOutArrayIdx, currentOutArrayIdx], currentOutArrayIdx = _ref5[0], prevOutArrayIdx = _ref5[1];
@@ -375,10 +466,68 @@ function dataCallback(e) {
 	var z = mxz;
 	var t2 = ( 1000.0 * n ) / ( f + n - z * ( f - n ) );
 	//alert("minz: "+mnz+", maxz: "+mxz+", val: "+t2);
-			
+   
+    // from: https://gist.github.com/958841
+	function base64FromArrayBuffer(arrayBuffer) {
+	  var base64    = '';
+	  var encodings = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+
+	  var bytes         = new Uint8Array(arrayBuffer);
+	  var byteLength    = bytes.byteLength;
+	  var byteRemainder = byteLength % 3;
+	  var mainLength    = byteLength - byteRemainder;
+
+	  var a, b, c, d;
+	  var chunk;
+
+	  // Main loop deals with bytes in chunks of 3
+	  for (var i = 0; i < mainLength; i = i + 3) {
+	    // Combine the three bytes into a single integer
+	    chunk = (bytes[i] << 16) | (bytes[i + 1] << 8) | bytes[i + 2];
+
+	    // Use bitmasks to extract 6-bit segments from the triplet
+	    a = (chunk & 16515072) >> 18; // 16515072 = (2^6 - 1) << 18
+	    b = (chunk & 258048)   >> 12; // 258048   = (2^6 - 1) << 12
+	    c = (chunk & 4032)     >>  6; // 4032     = (2^6 - 1) << 6
+	    d = chunk & 63;               // 63       = 2^6 - 1
+
+	    // Convert the raw binary segments to the appropriate ASCII encoding
+	    base64 += encodings[a] + encodings[b] + encodings[c] + encodings[d];
+	  }
+
+	  // Deal with the remaining bytes and padding
+	  if (byteRemainder == 1) {
+	    chunk = bytes[mainLength];
+
+	    a = (chunk & 252) >> 2; // 252 = (2^6 - 1) << 2
+
+	    // Set the 4 least significant bits to zero
+	    b = (chunk & 3)   << 4; // 3   = 2^2 - 1
+
+	    base64 += encodings[a] + encodings[b] + '==';
+	  } else if (byteRemainder == 2) {
+	    chunk = (bytes[mainLength] << 8) | bytes[mainLength + 1];
+
+	    a = (chunk & 64512) >> 10; // 64512 = (2^6 - 1) << 10
+	    b = (chunk & 1008)  >>  4; // 1008  = (2^6 - 1) << 4
+
+	    // Set the 2 least significant bits to zero
+	    c = (chunk & 15)    <<  2; // 15    = 2^4 - 1
+
+	    base64 += encodings[a] + encodings[b] + encodings[c] + '=';
+	  }
+  
+	  return base64;
+	}
+
+    // take advantage of dataURI resourcing to dynamically
+    // update the img tag that gets drawn to the canvas
+    var data = "data:image/jpg;base64," + base64FromArrayBuffer(e.data);
+    imgData.src = data;
+        
 	return particleSystem.geometry.__dirtyVertices = true;
 }
-
+*/
 function togglePlay() {
 	
 }
@@ -455,6 +604,11 @@ function render() {
 	camera.position.z = _ref4[1];
 	camera.lookAt(scene.position);
 	
-	renderer.render(scene, camera);
+    imageContext.drawImage (imgData, 0, 0);
+	imageContext.fillStyle = imageGradient;
+    imageContext.fillRect(0, 0, inputW, inputH);
+    if (texture) texture.needsUpdate = true;
+
+    renderer.render(scene, camera);
 	
 }
