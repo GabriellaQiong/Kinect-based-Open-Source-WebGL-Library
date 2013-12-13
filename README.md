@@ -77,7 +77,7 @@ RESULTS
 ---
 This is the 3D Point Cloud show the depth with a control panel to tune the RGBA value, point size along with the morphing ratio of x and y axes.
 
-[!ScreenShot](https://raw.github.com/GabriellaQiong/Kinect-based-Open-Source-WebGL-Library/master/Screenshots/depth1.png)
+![ScreenShot](https://raw.github.com/GabriellaQiong/Kinect-based-Open-Source-WebGL-Library/master/Screenshots/depth1.png)
 
 
 Here is our video demo.
