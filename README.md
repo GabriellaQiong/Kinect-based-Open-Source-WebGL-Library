@@ -73,9 +73,21 @@ sudo easy_install pylzman
 sudo easy_install autobahn
 ```
 ---
+RESULTS
+---
+This is the 3D Point Cloud show the depth with a control panel to tune the RGBA value, point size along with the morphing ratio of x and y axes.
+
+[!ScreenShot](https://raw.github.com/GabriellaQiong/Kinect-based-Open-Source-WebGL-Library/master/depth1.png)
+
+
+Here is our video demo.
+
+[![ScreenShot](https://raw.github.com/GabriellaQiong/Kinect-based-Open-Source-WebGL-Library/master/screenshot_vid.jpg)](http://www.youtube.com/watch?v=P4wDHG441ig)
+
+---
 THIRD-PARTY CODE
 ---
-
+ 
 The base code for websocket and depth display is from Elespuru's github: https://github.com/elespuru/kinect-ws-depth-vid
 
 Elespuru forked his project from George MacKerron's depthcam project:
