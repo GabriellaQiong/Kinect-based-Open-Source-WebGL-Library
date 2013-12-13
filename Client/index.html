@@ -29,19 +29,66 @@
 		
 		<script id="vs1" type="x-shader/x-vertex">
 			attribute vec3 aVertexPosition;
-			attribute vec3 aVertexData;
 
 			uniform mat4 uMVMatrix;
 			uniform mat4 uPMatrix;
-
+			
+			varying vec3 vColor;
+			
 			void main(void) {
-				float k = aVertexData.x - 1.0;
-				gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition.x, aVertexPosition.y, k, 1.0);
+				gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition, 1.0);
+				vColor = vec3(0.0, 0.0, 1.0);
 				
 				gl_PointSize = 2.0;
 			}
 		</script>
 
+		<script id="vs2" type="x-shader/x-vertex">
+			attribute vec3 aVertexPosition;
+			attribute float aVertexDepth;
+			
+			uniform mat4 uMVMatrix;
+			uniform mat4 uPMatrix;
+			
+			varying vec3 vColor;
+			
+			const float farClipping = 8000.0;
+			const float nearClipping = 850.0;
+			const float width = 640.0;
+			const float height = 480.0;
+			const float XtoZ = 1.11146; // tan( 1.0144686 / 2.0 ) * 2.0;
+			const float YtoZ = 0.83359; // tan( 0.7898090 / 2.0 ) * 2.0;
+			
+			void main(void) {
+				//float depth = aVertexDepth / 2700.0;
+				//float depth = aVertexDepth / 512.0;
+				float depth = 0.0;
+				if (depth < 2047.0) {
+					depth = 1.0 / (aVertexDepth * -0.0030711016 + 3.3309495161);
+				}
+				
+				// Projection code by @kcmic
+				
+				float z = ( 1.0 - depth ) * (farClipping - nearClipping) + nearClipping;
+				vec4 pos = vec4(
+					( aVertexPosition.x / width - 0.5 ) * z * XtoZ,
+					( aVertexPosition.y / height - 0.5 ) * z * YtoZ,
+					- z + 1000.0,
+					1.0);
+				
+				gl_Position = uPMatrix * uMVMatrix * pos;
+				gl_PointSize = 1.0;
+				if (pos.z > -4500.0)
+				{
+					vColor = vec3(1.0);
+				}
+				else
+				{
+					vColor = vec3(0.0);
+				}
+			}
+		</script>
+		
 		<script id="fs0" type="x-shader/x-fragment">
 			precision mediump float;
 
@@ -66,6 +113,7 @@
 				
 				vec4 a = texture2D(uSampler, vec2(vTextureCoord.s, vTextureCoord.t));
 				gl_FragColor = vec4(a.xxx, 1.0);
+				
 			}
 		</script>
 		
@@ -84,16 +132,18 @@
 		
 		<script id="fs2" type="x-shader/x-fragment">
 			precision mediump float;
-
+			
+			varying vec3 vColor;
+			
 			void main(void) {
-				gl_FragColor = vec4(1.0);
+				gl_FragColor = vec4(vColor, 1.0);
 			}
 		</script>
 	</head>
     
     <body>
 		<canvas id="main-canvas" width="640" height="480" style="position:absolute; left:0;top:0;"></canvas>
-		<table style="position:absolute; left:640px;top:0;">
+		<table style="position:absolute; left:640px; top:0;">
 			<tr>
 				<td>Render</td>
 				<td>Web Socket</td>
@@ -111,6 +161,9 @@
 					<input id="radio2" type="radio" value="2" name="option-group"><label for="radio2">XYZ (server) -- 12 Bytes (2.5MB/frame)</label><br>
 					<input id="radio3" type="radio" value="3" name="option-group"><label for="radio3">XYZ (client) -- 2 Bytes</label>
 				</form></td>
+			</tr>
+			<tr>
+				<td colspan="3"><div id="debug">Debug Element</div></td>
 			</tr>
 		</table>
     </body>

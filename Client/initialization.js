@@ -19,20 +19,6 @@ var initGL = function(canvas) {
 	return gl;
 };
 
-var initMVPMatrix = function(canvasWidth, canvasHeight) {
-	var mv = mat4.create();
-	mat4.identity(mv);
-	mat4.translate(mv, [0.0, 0.0, -1.0]);
-	mat4.scale(mv, [canvasWidth/canvasHeight, 1.0, 1.0]); // stretch cube.
-	
-	var p = mat4.create();
-	mat4.perspective(90, canvasWidth / canvasHeight, 0.1, 100.0, p);
-	
-	return {
-		modelView: mv,
-		projection: p
-	};
-};
 
 // -----------------------------------------------------------------------------
 // --------------------------------  SHADER  -----------------------------------
@@ -81,6 +67,7 @@ var initShaders = function(gl) {
 	// Get vertex & fragment shaders.
 	var vertexShader0 = getShader(gl, "vs0");
 	var vertexShader1 = getShader(gl, "vs1");
+	var vertexShader2 = getShader(gl, "vs2");
 	var fragmentShader0 = getShader(gl, "fs0");
 	var fragmentShader1 = getShader(gl, "fs1");
 	var fragmentShader2 = getShader(gl, "fs2");
@@ -99,17 +86,18 @@ var initShaders = function(gl) {
 		
 		return program;
 	};
-	var numPrograms = 3;
+	var numPrograms = 4;
 	var shaderProgram = new Array(numPrograms);
 	shaderProgram[0] = createAndLink(vertexShader0, fragmentShader0, 0);
 	shaderProgram[1] = createAndLink(vertexShader0, fragmentShader1, 1);
 	shaderProgram[2] = createAndLink(vertexShader1, fragmentShader2, 2);
+	shaderProgram[3] = createAndLink(vertexShader2, fragmentShader2, 3);
 	
 	gl.useProgram(shaderProgram[0]);
 	
 	
 	// Get attribute & uniform locations of vertex & fragment shaders.
-	var locations = new Array(2);
+	var locations = new Array(numPrograms);
 	locations[0] = {};
 	locations[0].vertexPositionAttribute = gl.getAttribLocation(shaderProgram[0], "aVertexPosition");
 	locations[0].textureCoordAttribute = gl.getAttribLocation(shaderProgram[0], "aTextureCoord");
@@ -126,9 +114,14 @@ var initShaders = function(gl) {
 	
 	locations[2] = {};
 	locations[2].vertexPositionAttribute = gl.getAttribLocation(shaderProgram[2], "aVertexPosition");
-	locations[2].vertexDataAttribute = gl.getAttribLocation(shaderProgram[2], "aVertexData");
 	locations[2].pMatrixUniform = gl.getUniformLocation(shaderProgram[2], "uPMatrix");
 	locations[2].mvMatrixUniform = gl.getUniformLocation(shaderProgram[2], "uMVMatrix");
+	
+	locations[3] = {};
+	locations[3].vertexPositionAttribute = gl.getAttribLocation(shaderProgram[3], "aVertexPosition");
+	locations[3].vertexDepthAttribute = gl.getAttribLocation(shaderProgram[3], "aVertexDepth");
+	locations[3].pMatrixUniform = gl.getUniformLocation(shaderProgram[3], "uPMatrix");
+	locations[3].mvMatrixUniform = gl.getUniformLocation(shaderProgram[3], "uMVMatrix");
 	
 	// Enable attribute array.
 	gl.enableVertexAttribArray(locations[0].vertexPositionAttribute);
@@ -136,7 +129,8 @@ var initShaders = function(gl) {
 	gl.enableVertexAttribArray(locations[1].vertexPositionAttribute);
 	gl.enableVertexAttribArray(locations[1].textureCoordAttribute);
 	gl.enableVertexAttribArray(locations[2].vertexPositionAttribute);
-	gl.enableVertexAttribArray(locations[2].vertexDataAttribute);
+	gl.enableVertexAttribArray(locations[3].vertexPositionAttribute);
+	gl.enableVertexAttribArray(locations[3].vertexDepthAttribute);
 	
 	return {
 		locations: locations,
@@ -171,12 +165,13 @@ var initBuffers = function(gl) {
 	var vertexGridPosition = {
 		webGLBuffer: gl.createBuffer(),
 		itemSize: 3,
-		numItems: w*h
+		numItems: w*h,
+		originalArray: null
 	};
 	
-	var vertexGridData = {
+	var vertexGridDepth = {
 		webGLBuffer: gl.createBuffer(),
-		itemSize: 3,
+		itemSize: 1,
 		numItems: w*h
 	};
 	
@@ -206,14 +201,14 @@ var initBuffers = function(gl) {
 	
 	var vertexGrid = new Array(vertexGridPosition.numItems*vertexGridPosition.itemSize);
 	var k = 0;
-	for (var i = 0; i < w; ++i) {
-		for (var j = 0; j < h; ++j) {
-			vertexGrid[k++] = i;
+	for (var i = h-1; i >= 0; --i) {
+		for (var j = 0; j < w; ++j) {
 			vertexGrid[k++] = j;
+			vertexGrid[k++] = i;
 			vertexGrid[k++] = 0.0;
 		}
 	}
-	
+	vertexGridPosition.originalArray = new Float32Array(vertexGrid);
 	
 	gl.bindBuffer(gl.ARRAY_BUFFER, vertexPosition.webGLBuffer);
 	gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
@@ -225,17 +220,17 @@ var initBuffers = function(gl) {
 	gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(vertexIndices), gl.STATIC_DRAW);
 
 	gl.bindBuffer(gl.ARRAY_BUFFER, vertexGridPosition.webGLBuffer);
-	gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertexGrid), gl.DYNAMIC_DRAW);
+	gl.bufferData(gl.ARRAY_BUFFER, vertexGridPosition.originalArray, gl.DYNAMIC_DRAW);
 	
-	gl.bindBuffer(gl.ARRAY_BUFFER, vertexGridData.webGLBuffer);
-	gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertexGridData.numItems*vertexGridData.itemSize), gl.DYNAMIC_DRAW);
+	gl.bindBuffer(gl.ARRAY_BUFFER, vertexGridDepth.webGLBuffer);
+	gl.bufferData(gl.ARRAY_BUFFER, new Int16Array(w*h*vertexGridDepth.itemSize), gl.DYNAMIC_DRAW);
 	
 	return {
 		vertexPosition: vertexPosition,
 		vertexTextureCoord: vertexTextureCoord,
 		vertexIndex: vertexIndex,
 		vertexGridPosition: vertexGridPosition,
-		vertexGridData: vertexGridData
+		vertexGridDepth: vertexGridDepth
 	};
 };
 
@@ -243,33 +238,32 @@ var initBuffers = function(gl) {
 // --------------------------------  TEXTURE  ----------------------------------
 // -----------------------------------------------------------------------------
 
-function handleLoadedTexture(gl, texture) {
-	gl.bindTexture(gl.TEXTURE_2D, texture.webGLTexture);
-	//gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+// Set up and allocate memory for texture.
+function initTexture(gl) {
+	var textures = new Array(2);
 	
+	textures[0] = {};
+	textures[0].format = gl.LUMINANCE;
+	textures[0].webGLTexture = gl.createTexture();
+	gl.bindTexture(gl.TEXTURE_2D, textures[0].webGLTexture);
+	gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+	gl.texImage2D(gl.TEXTURE_2D, 0, textures[0].format, 640, 480, 0, textures[0].format, gl.UNSIGNED_BYTE, null);
 	
-	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, texture.image);
-	//gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-	//gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+	textures[1] = {};
+	textures[1].format = gl.RGB;
+	textures[1].webGLTexture = gl.createTexture();
+	gl.bindTexture(gl.TEXTURE_2D, textures[1].webGLTexture);
+	gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+	gl.texImage2D(gl.TEXTURE_2D, 0, textures[1].format, 640, 480, 0, textures[1].format, gl.UNSIGNED_BYTE, null);
 	
 	gl.bindTexture(gl.TEXTURE_2D, null);
-};
-
-function initTexture(gl) {
-	var textures = new Array(2);
-	textures[0] = {};
-	textures[0].webGLTexture = gl.createTexture();
-	textures[0].image = new Image();
-	textures[0].image.onload = function () {
-		handleLoadedTexture(gl, textures[0]);
-	};
-	
-	textures[0].image.src = "cat.jpg";
-	
-	return textures[0];
+	return textures;
 };
 
 

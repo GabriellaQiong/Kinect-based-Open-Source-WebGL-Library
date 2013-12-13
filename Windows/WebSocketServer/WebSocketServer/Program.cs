@@ -32,7 +32,8 @@ class Program
 {
 	protected static ConcurrentDictionary<string, UserContext> onlineConnections;	// Thread-safe collection of online connections.
 	private static KinectSensor sensor;					// Active Kinect sensor.
-	private static DepthImagePixel[] depthPixels;		// Intermediate storage for the depth data received from the camera.
+	private static DepthImagePixel[] depthImagePixels;	// Intermediate storage for the depth data received from the camera.
+	private static short[] depthPixels;					// Same as above.
 
 	private static byte[] transferData;					// Data to send via WebSocket (points to one of the below).
 	private static byte[] depth1Packet;					// 1 byte depth data to send via WebSocket.
@@ -104,8 +105,9 @@ class Program
 			sensor.ColorStream.Enable(ColorImageFormat.RgbResolution640x480Fps30);
 
 			// Allocate space to put the depth pixels we'll receive.
-			depthPixels = new DepthImagePixel[sensor.DepthStream.FramePixelDataLength];
-			depth1Packet = new byte[sensor.DepthStream.FramePixelDataLength];// 640*480 = 307200.
+			depthImagePixels = new DepthImagePixel[sensor.DepthStream.FramePixelDataLength];
+			depthPixels = new short[sensor.DepthStream.FramePixelDataLength];// 640*480 = 307200.
+			depth1Packet = new byte[sensor.DepthStream.FramePixelDataLength];
 			colorPacket	 = new byte[640 * 480 * 3];		// sensor.ColorStream.FramePixelDataLength = 640*480*4.
 			positionPacket = new byte[640 * 480 * 12];	// = 3686400.
 			depth2Packet = new byte[640 * 480 * 2];		// = 614400.
@@ -139,49 +141,105 @@ class Program
 
 	private static void SensorDepthFrameReady(object sender, DepthImageFrameReadyEventArgs e)
 	{
-		if (mode != Modes.Depth1Byte && mode != Modes.Depth2Bytes) return;
+		if (mode == Modes.RGB) return;
 
 		stopwatch.Restart();
-
-		if (mode == Modes.Depth1Byte)
+		switch (mode)
 		{
-			using (DepthImageFrame depthFrame = e.OpenDepthImageFrame())
-			{
-				if (depthFrame != null)
+			case Modes.Depth1Byte:
 				{
-					// Copy the pixel data from the image to a temporary array
-					depthFrame.CopyDepthImagePixelDataTo(depthPixels);
-
-					// Get the min and max reliable depth for the current frame
-					int minDepth = depthFrame.MinDepth;
-					int maxDepth = depthFrame.MaxDepth;
-
-					// Convert depth from short to byte.
-					for (int i = 0; i < depthPixels.Length; ++i)
+					using (DepthImageFrame depthFrame = e.OpenDepthImageFrame())
 					{
-						// Get the depth for this pixel
-						short depth = depthPixels[i].Depth;
+						if (depthFrame != null)
+						{
+							// Copy the pixel data from the image to a temporary array
+							depthFrame.CopyDepthImagePixelDataTo(depthImagePixels);
 
-						// Note: Using conditionals in this loop could degrade performance.
-						// Consider using a lookup table instead when writing production code.
-						// See the KinectDepthViewer class used by the KinectExplorer sample
-						// for a lookup table example.
-						depth1Packet[i] = (byte)(depth / 256);
-						//transferData[i] = (byte)(depth >= minDepth && depth <= maxDepth ? depth : 0);
+							// Get the min and max reliable depth for the current frame
+							int minDepth = depthFrame.MinDepth;
+							int maxDepth = depthFrame.MaxDepth;
+
+							// Convert depth from short to byte.
+							for (int i = 0; i < depthImagePixels.Length; ++i)
+							{
+								// Get the depth for this pixel
+								short depth = depthImagePixels[i].Depth;
+
+								// Note: Using conditionals in this loop could degrade performance.
+								// Consider using a lookup table instead when writing production code.
+								// See the KinectDepthViewer class used by the KinectExplorer sample
+								// for a lookup table example.
+								depth1Packet[i] = (byte)(depth / 256);
+								//transferData[i] = (byte)(depth >= minDepth && depth <= maxDepth ? depth : 0);
+							}
+						}
 					}
+
+					stopwatch.Stop();
+					IncludeAtBeginningOf(ref depth1Packet, (UInt16)Modes.Depth1Byte, (UInt16)stopwatch.ElapsedMilliseconds);
+					break;
 				}
-			}
 
-			stopwatch.Stop();
-			IncludeAtBeginningOf(ref depth1Packet, (UInt16) Modes.Depth1Byte, (UInt16)stopwatch.ElapsedMilliseconds);
-		}
-		else
-		{
-			short[] aaa = { 1, 2, 3 };
-			Buffer.BlockCopy(aaa, 0, depth2Packet, 0, depth2Packet.Length);
+			case Modes.XYZ:
+				{
+					int k = 0;
+					
+					for (int i = 0; i < 640; ++i)
+					{
+						for (int j = 0; j < 480; ++j)
+						{
+							byte[] x = BitConverter.GetBytes((float)i);
+							byte[] y = BitConverter.GetBytes((float)j);
+							positionPacket[k++] = x[0];
+							positionPacket[k++] = x[1];
+							positionPacket[k++] = x[2];
+							positionPacket[k++] = x[3];
+							positionPacket[k++] = y[0];
+							positionPacket[k++] = y[1];
+							positionPacket[k++] = y[2];
+							positionPacket[k++] = y[3];
+							positionPacket[k++] = 0;
+							positionPacket[k++] = 0;
+							positionPacket[k++] = 0;
+							positionPacket[k++] = 0;
+						}
+					}
+					
+					stopwatch.Stop();
+					IncludeAtBeginningOf(ref positionPacket, (UInt16)Modes.XYZ, (UInt16)stopwatch.ElapsedMilliseconds);
+					break;
+				}
 
-			stopwatch.Stop();
-			IncludeAtBeginningOf(ref depth2Packet, (UInt16) Modes.Depth2Bytes, (UInt16)stopwatch.ElapsedMilliseconds);
+			case Modes.Depth2Bytes:
+				{
+					using (DepthImageFrame depthFrame = e.OpenDepthImageFrame())
+					{
+						if (depthFrame != null)
+						{
+							// Copy the pixel data from the image to a temporary array
+							//depthFrame.CopyPixelDataTo(depthPixels);
+							//Buffer.BlockCopy(depthPixels, 0, depth2Packet, 0, depth2Packet.Length);
+
+							depthFrame.CopyDepthImagePixelDataTo(depthImagePixels);
+							int k = 0;
+							for (int i = 0; i < depthImagePixels.Length; ++i)
+							{
+								// Get the depth for this pixel
+								short depth = depthImagePixels[i].Depth;
+								byte[] depthArray = BitConverter.GetBytes(depth);
+								depth2Packet[k++] = depthArray[0];
+								depth2Packet[k++] = depthArray[1];
+							}
+						}
+					}
+
+					stopwatch.Stop();
+					IncludeAtBeginningOf(ref depth2Packet, (UInt16)Modes.Depth2Bytes, (UInt16)stopwatch.ElapsedMilliseconds);
+					break;
+				}
+
+			default:
+				return;
 		}
 		SendData();
 	}
